@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 5000
 
 # Define environment variable for the PostgreSQL connection
-ENV DATABASE_URL=postgresql://pyflaskdbadmin:admin@153615@pyflaskgrpdb.postgres.database.azure.com:5432/mydb
+ENV DATABASE_URL=postgresql://pyflaskdbadmin:admin153615@pyflaskgrpdb.postgres.database.azure.com:5432/mydb
 
 # Command to run the app
 CMD ["flask", "run", "--host=0.0.0.0"]
