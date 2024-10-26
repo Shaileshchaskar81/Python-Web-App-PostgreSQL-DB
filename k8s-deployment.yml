@@ -19,7 +19,7 @@ spec:
         - containerPort: 5000
         env:
         - name: DATABASE_URL
-          value: postgresql://pyflaskdbadmin:admin@153615@pyflaskgrpdb.postgres.database.azure.com:5432/mydb
+          value: postgresql://pyflaskdbadmin:Admin153615@pyflaskgrpdb.postgres.database.azure.com:5432/mydb
 ---
 apiVersion: v1
 kind: Service
