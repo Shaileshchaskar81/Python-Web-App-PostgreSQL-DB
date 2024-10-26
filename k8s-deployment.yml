@@ -14,12 +14,12 @@ spec:
     spec:
       containers:
       - name: flask-app
-        image: <acr-name>.azurecr.io/flask-app:latest
+        image: pyflaskacr.azurecr.io/flask-app:latest
         ports:
         - containerPort: 5000
         env:
         - name: DATABASE_URL
-          value: postgresql://<db-admin-username>:<db-password>@<azure-postgres-host>:5432/mydb
+          value: postgresql://pyflaskdbadmin:admin@153615@pyflaskgrpdb.postgres.database.azure.com:5432/mydb
 ---
 apiVersion: v1
 kind: Service
