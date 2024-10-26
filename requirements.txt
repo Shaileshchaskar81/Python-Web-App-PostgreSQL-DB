@@ -1,3 +1,4 @@
 Flask==3.0.3
+werkzeug==2.2.2
 SQLAlchemy==1.4.32
 psycopg2-binary==2.9.3
