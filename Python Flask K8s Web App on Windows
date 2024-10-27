@@ -1,0 +1,287 @@
+Q - How to create docker container and deploy on local windows laptop using k8s
+
+To deloy a Docker containerized Flask web app and PostgreSQL database on your local Windows laptop using Kubernetes (K8s), you can follow these steps:
+
+### Prerequisites:
+1. **Install Docker Desktop with Kubernetes**:
+   - Docker Desktop for Windows includes a built-in Kubernetes cluster.
+   - Make sure Kubernetes is enabled in Docker Desktop.
+     - Go to **Docker Desktop Settings > Kubernetes > Enable Kubernetes**.
+
+2. **Install kubectl**:
+   - The `kubectl` command-line tool is required to interact with Kubernetes clusters. It is included in Docker Desktop, so you don’t need to install it separately.
+
+### Steps:
+
+### 1. **Containerize the Flask App using Docker**:
+
+Create a Dockerfile for the Flask web app.
+
+#### 1.1 **Create a simple Flask app (`app.py`)**:
+
+```python
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Hello from Flask and Kubernetes on Windows!"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+#### 1.2 **Create a `requirements.txt`**:
+
+```txt
+Flask==2.3.0
+```
+
+#### 1.3 **Create a Dockerfile**:
+
+```Dockerfile
+# Use an official Python runtime as a parent image
+FROM python:3.10-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Expose port 5000 for the Flask app
+EXPOSE 5000
+
+# Run the Flask app when the container launches
+CMD ["flask", "run", "--host=0.0.0.0"]
+```
+
+#### 1.4 **Build the Docker Image**:
+
+- Open a terminal (PowerShell/Command Prompt) and navigate to the Flask project folder.
+
+- Build the Docker image:
+
+   ```bash
+   docker build -t flask-k8s-app:latest .
+   ```
+
+You now have a Docker image called `flask-k8s-app` built locally.
+
+### 2. **Set Up Kubernetes (K8s) on Windows with Docker**:
+
+Ensure Kubernetes is enabled in Docker Desktop:
+1. Open Docker Desktop and navigate to **Settings > Kubernetes**.
+2. Check **Enable Kubernetes** and click **Apply & Restart**.
+
+Once Kubernetes is enabled, Docker Desktop will also run a local Kubernetes cluster.
+
+### 3. **Create Kubernetes Configuration Files**:
+
+You need two key Kubernetes objects:
+1. **Deployment** (for managing Flask app container).
+2. **Service** (to expose the Flask app).
+
+#### 3.1 **Create `flask-deployment.yaml`**:
+
+This file defines the deployment for your Flask app.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flask
+  template:
+    metadata:
+      labels:
+        app: flask
+    spec:
+      containers:
+      - name: flask
+        image: flask-k8s-app:latest
+        ports:
+        - containerPort: 5000
+```
+
+#### 3.2 **Create `flask-service.yaml`**:
+
+This file defines the service to expose your Flask app.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-service
+spec:
+  selector:
+    app: flask
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000
+  type: LoadBalancer
+```
+
+### 4. **Run Docker Image Locally on Kubernetes**:
+
+#### 4.1 **Load Docker Image into Kubernetes**:
+
+Since Kubernetes in Docker Desktop runs in a separate environment, the locally built Docker image (`flask-k8s-app`) must be made available to it. You can use `kind` or Minikube with local image support, but for Docker Desktop Kubernetes, you can push the image to your local Docker registry:
+
+```bash
+docker tag flask-k8s-app:latest localhost:5000/flask-k8s-app:latest
+docker push localhost:5000/flask-k8s-app:latest
+```
+
+Alternatively, if you're using Docker Desktop’s local Kubernetes cluster, Docker Desktop automatically shares the images with Kubernetes.
+
+#### 4.2 **Deploy Flask App with Kubernetes**:
+
+1. Apply the Flask deployment and service:
+
+```bash
+kubectl apply -f flask-deployment.yaml
+kubectl apply -f flask-service.yaml
+```
+
+2. Check the status of the deployment:
+
+```bash
+kubectl get deployments
+```
+
+3. Check the status of the service:
+
+```bash
+kubectl get services
+```
+
+The service should be of type `LoadBalancer`, which will expose the Flask app on a localhost port.
+
+#### 4.3 **Access the Flask App**:
+
+1. Get the service’s external IP address (for `LoadBalancer`):
+
+```bash
+kubectl get services flask-service
+```
+
+2. Copy the external IP or use `localhost` with the port assigned by Docker Desktop (typically `localhost:5000`).
+
+Open a browser and visit the app:
+
+```bash
+http://localhost:5000
+```
+
+You should see `Hello from Flask and Kubernetes on Windows!`.
+
+### 5. **Deploy PostgreSQL with Kubernetes (Optional)**:
+
+#### 5.1 **PostgreSQL Deployment and Service YAML**:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: postgres
+        - name: POSTGRES_DB
+          value: flaskdb
+        ports:
+        - containerPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+spec:
+  selector:
+    app: postgres
+  ports:
+  - protocol: TCP
+    port: 5432
+    targetPort: 5432
+  type: ClusterIP
+```
+
+#### 5.2 **Deploy PostgreSQL**:
+
+```bash
+kubectl apply -f postgres-deployment.yaml
+kubectl apply -f postgres-service.yaml
+```
+
+Your PostgreSQL database will be available inside the Kubernetes cluster.
+
+#### 5.3 **Connect Flask to PostgreSQL**:
+
+Update your Flask app's `app.py` to connect to the PostgreSQL service:
+
+```python
+import os
+import psycopg2
+from flask import Flask
+
+app = Flask(__name__)
+
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@postgres-service:5432/flaskdb')
+
+def get_db_connection():
+    conn = psycopg2.connect(DATABASE_URL)
+    return conn
+
+@app.route('/')
+def home():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT version()')
+    db_version = cur.fetchone()
+    cur.close()
+    conn.close()
+    return f"PostgreSQL version: {db_version[0]}"
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+Now, redeploy your Flask app to use the PostgreSQL service.
+
+### 6. **Clean Up**:
+
+To remove the Kubernetes resources when you are done, use:
+
+```bash
+kubectl delete -f flask-deployment.yaml
+kubectl delete -f flask-service.yaml
+kubectl delete -f postgres-deployment.yaml
+kubectl delete -f postgres-service.yaml
+```
+
+That’s it! You now have Flask and PostgreSQL running on Kubernetes on your local Windows laptop.
